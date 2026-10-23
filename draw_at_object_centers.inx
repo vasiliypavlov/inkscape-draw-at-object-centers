@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+    <name>Draw at object centers</name>
+    <id>org.github.inkscape.draw_at_object_centers</id>
+
+    <param name="shape_type" type="optiongroup" appearance="combo"
+           gui-text="Action">
+        <option value="circle">Circle at center</option>
+        <option value="oval">Ellipse at center</option>
+        <option value="square">Square at center</option>
+        <option value="rectangle">Rectangle at center</option>
+        <option value="segments">Lines: consecutive pairs</option>
+        <option value="polyline">Line: single polyline</option>
+        <option value="mesh">Lines: all pairs (mesh)</option>
+        <option value="diagram_connector">Diagram connectors</option>
+    </param>
+
+    <param name="sort_order" type="optiongroup" appearance="combo"
+           gui-text="Order of points">
+        <option value="document">Document order (default)</option>
+        <option value="ltr">Left to right</option>
+        <option value="rtl">Right to left</option>
+        <option value="ttb">Top to bottom</option>
+        <option value="btt">Bottom to top</option>
+        <option value="nearest">Nearest neighbor chain</option>
+        <option value="radial">Radial (by angle around center)</option>
+    </param>
+
+    <param name="close_polyline" type="bool"
+           gui-text="Close polyline (connect last to first)">false</param>
+
+    <param name="line_color_mode" type="optiongroup" appearance="radio"
+           gui-text="Line color">
+        <option value="black">Black</option>
+        <option value="stroke">Inherit from stroke</option>
+        <option value="fill">Inherit from fill</option>
+    </param>
+
+    <param name="group_result" type="bool"
+           gui-text="Group the result">false</param>
+
+    <effect needs-live-preview="false">
+        <object-type>all</object-type>
+        <effects-menu>
+            <submenu name="Custom"/>
+        </effects-menu>
+    </effect>
+    <script>
+        <command location="inx" interpreter="python">draw_at_object_centers.py</command>
+    </script>
+</inkscape-extension>
