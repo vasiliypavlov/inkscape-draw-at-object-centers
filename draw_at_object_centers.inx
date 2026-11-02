@@ -15,6 +15,13 @@
         <option value="diagram_connector">Diagram connectors</option>
     </param>
 
+    <param name="shape_stroke_mode" type="optiongroup" appearance="radio"
+           gui-text="Shape stroke">
+        <option value="parent_stroke">Stroke color of parent (default)</option>
+        <option value="parent_fill">Fill color of parent (hairline if no stroke)</option>
+        <option value="none">No stroke</option>
+    </param>
+	
     <param name="sort_order" type="optiongroup" appearance="combo"
            gui-text="Order of points">
         <option value="document">Document order (default)</option>
