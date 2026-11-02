@@ -13,6 +13,19 @@ def fmt(v):
     return "{:.6f}".format(float(v))
 
 
+# Stroke-свойства, наследуемые целиком (кроме цвета/толщины/прозрачности —
+# они обрабатываются отдельно, потому что от режима к режиму меняются).
+STROKE_STYLE_PROPS = (
+    'stroke-linecap',
+    'stroke-linejoin',
+    'stroke-miterlimit',
+    'stroke-dasharray',
+    'stroke-dashoffset',
+    'vector-effect',
+    'paint-order',
+)
+
+
 class DrawAtObjectCenters(inkex.EffectExtension):
 
     def add_arguments(self, pars):
@@ -33,7 +46,15 @@ class DrawAtObjectCenters(inkex.EffectExtension):
             result.append(node)
         return result
 
+    # ------------------------------------------------------------------
     def _get_inherited(self, node, prop, default):
+        """Возвращает значение свойства с учётом наследования от предков.
+
+        Обрабатывает как presentation attributes, так и style="...".
+        Для CSS-custom-свойств вида '-inkscape-stroke' дополнительно
+        проверяет вариант без ведущего дефиса (некоторые версии inkex
+        нормализуют ключи).
+        """
         current = node
         while current is not None:
             if 'style' in current.attrib:
@@ -41,6 +62,10 @@ class DrawAtObjectCenters(inkex.EffectExtension):
                     s = inkex.Style(current.attrib['style'])
                     if prop in s:
                         val = s[prop]
+                        if val not in (None, '', 'inherit'):
+                            return val
+                    if prop.startswith('-') and prop[1:] in s:
+                        val = s[prop[1:]]
                         if val not in (None, '', 'inherit'):
                             return val
                 except Exception:
@@ -138,10 +163,19 @@ class DrawAtObjectCenters(inkex.EffectExtension):
         return conn
 
     # ------------------------------------------------------------------
-    # Стили фигур (с учётом shape_stroke_mode)
+    # Стили фигур — полное наследование обводки
     # ------------------------------------------------------------------
+    def _copy_stroke_style_props(self, elem, style):
+        """Копирует все стилевые свойства обводки, если они заданы у родителя."""
+        for prop in STROKE_STYLE_PROPS:
+            val = style.get(prop)
+            if val:
+                elem.style[prop] = val
+        if style.get('-inkscape-stroke') == 'hairline':
+            elem.style['-inkscape-stroke'] = 'hairline'
+
     def _apply_shape_style(self, elem, style, stroke_mode):
-        """Заливка и общая прозрачность наследуются всегда."""
+        # Заливка и прозрачности наследуются всегда
         elem.style['fill'] = style['fill']
         elem.style['opacity'] = str(style['opacity'])
         elem.style['fill-opacity'] = str(style['fill-opacity'])
@@ -151,35 +185,37 @@ class DrawAtObjectCenters(inkex.EffectExtension):
             elem.style['stroke'] = 'none'
             return
 
+        parent_stroke = style.get('stroke')
+        parent_has_stroke = parent_stroke not in (None, '', 'none', 'inherit')
+
         # --- Обводка цветом заливки родителя ---
         if stroke_mode == 'parent_fill':
             color = style.get('fill')
             if color in (None, '', 'none', 'inherit'):
-                color = style.get('stroke')
+                color = parent_stroke
             if color in (None, '', 'none', 'inherit'):
                 color = '#000000'
             elem.style['stroke'] = color
 
-            parent_stroke = style.get('stroke')
-            parent_has_stroke = parent_stroke not in (
-                None, '', 'none', 'inherit')
-
             if parent_has_stroke:
-                # у родителя есть обводка — берём её толщину
+                # Родитель имеет обводку — наследуем её стиль целиком,
+                # подменяя только цвет на цвет заливки.
                 elem.style['stroke-width'] = str(style['stroke-width'])
+                elem.style['stroke-opacity'] = str(style['stroke-opacity'])
+                self._copy_stroke_style_props(elem, style)
             else:
-                # у родителя обводки нет — тонкая линия (hairline)
+                # Обводки у родителя нет — тонкая линия (hairline),
+                # прозрачность берём из заливки, т.к. цвет оттуда же.
                 elem.style['stroke-width'] = '0.264583'
+                elem.style['stroke-opacity'] = str(style['fill-opacity'])
                 elem.style['-inkscape-stroke'] = 'hairline'
-
-            # цвет взят из заливки — прозрачность тоже от заливки
-            elem.style['stroke-opacity'] = str(style['fill-opacity'])
             return
 
-        # --- По умолчанию: обводка родителя ---
-        elem.style['stroke'] = style['stroke']
+        # --- По умолчанию: полное наследование обводки родителя ---
+        elem.style['stroke'] = parent_stroke
         elem.style['stroke-width'] = str(style['stroke-width'])
         elem.style['stroke-opacity'] = str(style['stroke-opacity'])
+        self._copy_stroke_style_props(elem, style)
 
     # ------------------------------------------------------------------
     # Стили линий и соединителей (line_color_mode)
@@ -244,9 +280,15 @@ class DrawAtObjectCenters(inkex.EffectExtension):
                 'opacity': self._get_inherited(obj, 'opacity', '1'),
                 'fill-opacity': self._get_inherited(obj, 'fill-opacity', '1'),
                 'stroke-opacity': self._get_inherited(obj, 'stroke-opacity', '1'),
-                'stroke-linecap': self._get_inherited(obj, 'stroke-linecap', 'round'),
-                'stroke-linejoin': self._get_inherited(obj, 'stroke-linejoin', 'round'),
-                'stroke-miterlimit': self._get_inherited(obj, 'stroke-miterlimit', '10'),
+                # Расширенный набор stroke-свойств (пустая строка = не задано)
+                'stroke-linecap': self._get_inherited(obj, 'stroke-linecap', ''),
+                'stroke-linejoin': self._get_inherited(obj, 'stroke-linejoin', ''),
+                'stroke-miterlimit': self._get_inherited(obj, 'stroke-miterlimit', ''),
+                'stroke-dasharray': self._get_inherited(obj, 'stroke-dasharray', ''),
+                'stroke-dashoffset': self._get_inherited(obj, 'stroke-dashoffset', ''),
+                'vector-effect': self._get_inherited(obj, 'vector-effect', ''),
+                'paint-order': self._get_inherited(obj, 'paint-order', ''),
+                '-inkscape-stroke': self._get_inherited(obj, '-inkscape-stroke', ''),
             }
             data.append((left + w / 2.0, top + h / 2.0,
                          w, h, left, top, style, obj))
