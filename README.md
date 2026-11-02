@@ -13,7 +13,18 @@ Inkscape 1.x extension — draw shapes at object centers and connect them with l
 
 **Shapes at centers**
 - Circle, ellipse, square, rectangle — centered on each selected object.
-- Fill, stroke and opacity are inherited from the source object.
+- Fill and opacity are inherited from the source object.
+- Stroke style is controlled by the **Shape stroke** option (see below).
+
+**Shape stroke**
+- **Stroke color of parent** (default) — the generated shape inherits the parent's
+  full stroke style: color, width, opacity, line cap, line join, miter limit,
+  dash pattern, vector effect and hairline status.
+- **Fill color of parent (hairline if no stroke)** — the shape's stroke takes the
+  parent's fill color. If the parent already has a stroke, its full stroke style
+  (width, opacity, cap/join/miter, dash, vector effect, hairline) is reused;
+  otherwise the shape gets a 1‑pixel *hairline* stroke.
+- **No stroke** — the shape has no stroke at all.
 
 **Lines between centers**
 - **Consecutive pairs** — one segment between each pair of adjacent centers.
@@ -52,10 +63,11 @@ Copy `draw_at_object_centers.inx` and `draw_at_object_centers.py` into your Inks
 
 1. Select one or more objects (or a group).
 2. Open **Extensions → Custom → Draw at object centers**.
-3. Choose an action, the point ordering, the line color mode, and whether to group the result.
+3. Choose an action, the point ordering, the shape stroke mode, the line color mode, and whether to group the result.
 4. Click **Apply**.
 
 ### Notes
+- **Shape stroke** affects only the shape actions (circle / ellipse / square / rectangle). It has no effect on lines or connectors — those use **Line color**.
 - **Diagram connectors** are only fully honored by Inkscape when the connected objects have stable IDs; the plugin assigns IDs automatically if missing.
 - **Mesh mode** ignores point ordering (all pairs are drawn).
 - **Close polyline** applies only to the *single polyline* action.
@@ -69,7 +81,20 @@ Copy `draw_at_object_centers.inx` and `draw_at_object_centers.py` into your Inks
 
 **Фигуры в центрах**
 - Круг, овал, квадрат, прямоугольник — по центру каждого выделенного объекта.
-- Заливка, обводка и прозрачность наследуются от исходного объекта.
+- Заливка и прозрачность наследуются от исходного объекта.
+- Стиль обводки задаётся параметром **Обводка фигуры** (см. ниже).
+
+**Обводка фигуры**
+- **Цвет обводки родителя** (по умолчанию) — генерируемая фигура наследует
+  весь стиль обводки исходного объекта: цвет, толщину, прозрачность,
+  форму концов, форму стыков, miter-limit, пунктир, vector-effect
+  и статус hairline.
+- **Цвет заливки родителя (hairline при отсутствии обводки)** — обводка
+  фигуры окрашивается в цвет заливки исходного объекта. Если у родителя
+  есть обводка — наследуется её полный стиль (толщина, прозрачность,
+  концы/стыки, пунктир, vector-effect, hairline), меняется только цвет.
+  Если обводки нет — фигура получает тонкую линию (hairline, 1 пиксель).
+- **Без обводки** — у фигуры нет обводки.
 
 **Линии между центрами**
 - **Соседние пары** — отрезок между каждой парой соседних центров.
@@ -108,10 +133,11 @@ Copy `draw_at_object_centers.inx` and `draw_at_object_centers.py` into your Inks
 
 1. Выделите один или несколько объектов (или группу).
 2. Откройте **Расширения → Custom → Draw at object centers**.
-3. Выберите действие, порядок точек, режим цвета линий и объединение в группу.
+3. Выберите действие, порядок точек, режим обводки фигуры, режим цвета линий и объединение в группу.
 4. Нажмите **Применить**.
 
 ### Примечания
+- **Обводка фигуры** действует только на режимы фигур (круг / овал / квадрат / прямоугольник) и не влияет на линии и соединители — у них свой параметр **Цвет линий**.
 - **Соединители диаграмм** корректно работают, когда у связанных объектов есть стабильные ID; плагин назначает их автоматически при отсутствии.
 - Режим **«Сетка»** игнорирует сортировку (рисуются все пары).
 - Параметр **«Замкнуть ломаную»** действует только для режима «одна ломаная».
