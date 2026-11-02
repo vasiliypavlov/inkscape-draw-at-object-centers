@@ -6,7 +6,7 @@ Draw at object centers — расширение Inkscape 1.x
 
 import math
 import inkex
-from inkex import Ellipse, Rectangle, Group, Line, Polyline, PathElement
+from inkex import Ellipse, Rectangle, Group, PathElement
 
 
 def fmt(v):
@@ -17,6 +17,7 @@ class DrawAtObjectCenters(inkex.EffectExtension):
 
     def add_arguments(self, pars):
         pars.add_argument("--shape_type", default="circle")
+        pars.add_argument("--shape_stroke_mode", default="parent_stroke")
         pars.add_argument("--sort_order", default="document")
         pars.add_argument("--close_polyline", type=inkex.Boolean, default=False)
         pars.add_argument("--line_color_mode", default="black")
@@ -52,7 +53,7 @@ class DrawAtObjectCenters(inkex.EffectExtension):
         return default
 
     # ------------------------------------------------------------------
-    # Сортировка точек
+    # Сортировка
     # ------------------------------------------------------------------
     def _sort_points(self, data, sort_order):
         if sort_order in (None, '', 'document'):
@@ -72,7 +73,6 @@ class DrawAtObjectCenters(inkex.EffectExtension):
         return data
 
     def _nearest_neighbor(self, data):
-        """Жадный алгоритм: каждый шаг — ближайшая необработанная точка."""
         if len(data) < 2:
             return data
         remaining = list(data)
@@ -88,7 +88,6 @@ class DrawAtObjectCenters(inkex.EffectExtension):
         return result
 
     def _radial_sort(self, data):
-        """Сортировка по углу вокруг центра масс."""
         if len(data) < 2:
             return data
         cx = sum(d[0] for d in data) / len(data)
@@ -111,14 +110,12 @@ class DrawAtObjectCenters(inkex.EffectExtension):
         return el
 
     def _make_line(self, x1, y1, x2, y2):
-        """Отрезок как <path> — сразу редактируется Node Tool."""
         el = PathElement()
         el.set('d', "M {},{} L {},{}".format(
             fmt(x1), fmt(y1), fmt(x2), fmt(y2)))
         return el
 
     def _make_polyline(self, points):
-        """Ломаная как <path> — сразу редактируется Node Tool."""
         if not points:
             return None
         el = PathElement()
@@ -141,16 +138,52 @@ class DrawAtObjectCenters(inkex.EffectExtension):
         return conn
 
     # ------------------------------------------------------------------
-    # Стили
+    # Стили фигур (с учётом shape_stroke_mode)
     # ------------------------------------------------------------------
-    def _apply_style(self, elem, style):
+    def _apply_shape_style(self, elem, style, stroke_mode):
+        """Заливка и общая прозрачность наследуются всегда."""
         elem.style['fill'] = style['fill']
-        elem.style['stroke'] = style['stroke']
-        elem.style['stroke-width'] = str(style['stroke-width'])
         elem.style['opacity'] = str(style['opacity'])
         elem.style['fill-opacity'] = str(style['fill-opacity'])
+
+        # --- Без обводки ---
+        if stroke_mode == 'none':
+            elem.style['stroke'] = 'none'
+            return
+
+        # --- Обводка цветом заливки родителя ---
+        if stroke_mode == 'parent_fill':
+            color = style.get('fill')
+            if color in (None, '', 'none', 'inherit'):
+                color = style.get('stroke')
+            if color in (None, '', 'none', 'inherit'):
+                color = '#000000'
+            elem.style['stroke'] = color
+
+            parent_stroke = style.get('stroke')
+            parent_has_stroke = parent_stroke not in (
+                None, '', 'none', 'inherit')
+
+            if parent_has_stroke:
+                # у родителя есть обводка — берём её толщину
+                elem.style['stroke-width'] = str(style['stroke-width'])
+            else:
+                # у родителя обводки нет — тонкая линия (hairline)
+                elem.style['stroke-width'] = '0.264583'
+                elem.style['-inkscape-stroke'] = 'hairline'
+
+            # цвет взят из заливки — прозрачность тоже от заливки
+            elem.style['stroke-opacity'] = str(style['fill-opacity'])
+            return
+
+        # --- По умолчанию: обводка родителя ---
+        elem.style['stroke'] = style['stroke']
+        elem.style['stroke-width'] = str(style['stroke-width'])
         elem.style['stroke-opacity'] = str(style['stroke-opacity'])
 
+    # ------------------------------------------------------------------
+    # Стили линий и соединителей (line_color_mode)
+    # ------------------------------------------------------------------
     def _resolve_line_color(self, style, color_mode):
         if color_mode == 'stroke':
             color = style.get('stroke')
@@ -168,7 +201,6 @@ class DrawAtObjectCenters(inkex.EffectExtension):
         elem.style['stroke-width'] = str(style['stroke-width'])
         elem.style['opacity'] = str(style['opacity'])
         elem.style['stroke-opacity'] = str(style['stroke-opacity'])
-        # рендеринг штриха
         elem.style['stroke-linecap'] = style.get('stroke-linecap') or 'round'
         elem.style['stroke-linejoin'] = style.get('stroke-linejoin') or 'round'
         elem.style['stroke-miterlimit'] = style.get('stroke-miterlimit') or '10'
@@ -176,6 +208,7 @@ class DrawAtObjectCenters(inkex.EffectExtension):
     # ------------------------------------------------------------------
     def effect(self):
         shape_type = self.options.shape_type
+        shape_stroke_mode = self.options.shape_stroke_mode
         sort_order = self.options.sort_order
         close_polyline = bool(self.options.close_polyline)
         color_mode = self.options.line_color_mode
@@ -211,7 +244,6 @@ class DrawAtObjectCenters(inkex.EffectExtension):
                 'opacity': self._get_inherited(obj, 'opacity', '1'),
                 'fill-opacity': self._get_inherited(obj, 'fill-opacity', '1'),
                 'stroke-opacity': self._get_inherited(obj, 'stroke-opacity', '1'),
-                # новое — для аккуратных концов/стыков линий:
                 'stroke-linecap': self._get_inherited(obj, 'stroke-linecap', 'round'),
                 'stroke-linejoin': self._get_inherited(obj, 'stroke-linejoin', 'round'),
                 'stroke-miterlimit': self._get_inherited(obj, 'stroke-miterlimit', '10'),
@@ -222,13 +254,12 @@ class DrawAtObjectCenters(inkex.EffectExtension):
         if not data:
             return
 
-        # ---- применяем сортировку (для всех режимов, кроме mesh: там все пары) ----
         if shape_type != 'mesh':
             data = self._sort_points(data, sort_order)
 
         new_elements = []
 
-        # ---- фигуры ----
+        # ---- Фигуры в центрах ----
         if shape_type in ('circle', 'oval', 'square', 'rectangle'):
             for cx, cy, w, h, left, top, style, _obj in data:
                 if shape_type == 'circle':
@@ -241,10 +272,10 @@ class DrawAtObjectCenters(inkex.EffectExtension):
                     elem = self._make_rect(cx - s / 2.0, cy - s / 2.0, s, s)
                 else:
                     elem = self._make_rect(left, top, w, h)
-                self._apply_style(elem, style)
+                self._apply_shape_style(elem, style, shape_stroke_mode)
                 new_elements.append(elem)
 
-        # ---- отдельные линии (соседние пары) ----
+        # ---- Отдельные линии (соседние пары) ----
         elif shape_type == 'segments':
             if len(data) < 2:
                 return
@@ -255,7 +286,7 @@ class DrawAtObjectCenters(inkex.EffectExtension):
                 self._apply_line_style(elem, data[i][6], color_mode)
                 new_elements.append(elem)
 
-        # ---- одна ломаная ----
+        # ---- Одна ломаная ----
         elif shape_type == 'polyline':
             if len(data) < 2:
                 return
@@ -266,7 +297,7 @@ class DrawAtObjectCenters(inkex.EffectExtension):
             self._apply_line_style(elem, data[0][6], color_mode)
             new_elements.append(elem)
 
-        # ---- все пары (mesh) ----
+        # ---- Все пары (mesh) ----
         elif shape_type == 'mesh':
             if len(data) < 2:
                 return
@@ -279,7 +310,7 @@ class DrawAtObjectCenters(inkex.EffectExtension):
                     self._apply_line_style(elem, data[i][6], color_mode)
                     new_elements.append(elem)
 
-        # ---- соединители диаграммы ----
+        # ---- Соединители диаграммы ----
         elif shape_type == 'diagram_connector':
             if len(data) < 2:
                 return
